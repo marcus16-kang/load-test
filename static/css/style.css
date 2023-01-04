@@ -45,3 +45,7 @@ pre {
 .log-5m {
     max-height: calc(100% - 10rem);
 }
+
+.fs-7 {
+    font-size: 15px;
+}

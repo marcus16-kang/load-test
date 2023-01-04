@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -93,14 +93,14 @@
                         </div>
                         <div class="col-3">
                             <div class="row">
-                                <button class="btn btn-lg btn-primary col-7 m-1" id="start">
+                                <button class="btn btn-primary col-7 m-1" id="start">
                                     <span id="start-text">Start</span>
                                     <div class="spinner-border spinner-border-sm d-none" role="status"
                                          id="process-spinner">
                                         <span class="visually-hidden">Loading...</span>
                                     </div>
                                 </button>
-                                <button class="btn btn-lg btn-danger col-4 m-1" id="reset-stop">
+                                <button class="btn btn-danger col-4 m-1" id="reset-stop">
                                     Reset
                                 </button>
                             </div>
@@ -130,6 +130,7 @@
         </div>
     </div>
 </main>
+<script src="static/js/ipc.js"></script>
 <script src="static/js/queue.js"></script>
 <script src="static/js/cookie.js"></script>
 <script>
@@ -466,6 +467,7 @@
     let time = 0;
     let timer;
     let timeout = 0;
+    let previous = true;   // true: 200~399, false: 400~599
 
     let queue5m = new Queue();
     let pieAllChartStatus = new PieAllChartStatus();
@@ -535,7 +537,7 @@
             processSpinner.classList.add('d-inline-block');
 
             startBtn.disabled = true;
-            startText.innerText = 'Processing...';
+            startText.innerHTML = '<span class="fs-7">Processing...</span>';
 
             resetStopBtn.innerText = 'Stop';
             requestEnabled = true;
@@ -615,6 +617,7 @@
                                 pie5mChartStatus.add(item.status, result[1]);
                                 pie1mChartStatus.add(item.status, result[1]);
                                 lineChartStatus.add(item.status);
+                                previous = true
                             } else if (item.code === 'ERR_NETWORK') {
                                 let result = logging(0, 'ERR_NETWORK', '', item.config.headers, 'Please see in JavaScript Console.');
                                 pieAllChartStatus.add(0);
@@ -622,6 +625,10 @@
                                 pie1mChartStatus.add(0, result[1]);
                                 lineChartStatus.add(0);
                                 queue5m.enqueue(result);
+                                if (previous) {
+                                    previous = 0;
+                                    sendNotification(0, 'ERR_NETWORK', 'Please see in JavaScript Console.');
+                                }
                             } else {    // 400 ~ 599
                                 let result = logging(item.response.status, item.response.statusText, item.response.headers, item.response.config.headers, item.response.data);
                                 pieAllChartStatus.add(item.response.status);
@@ -629,6 +636,10 @@
                                 pie1mChartStatus.add(item.response.status, result[1]);
                                 lineChartStatus.add(item.response.status);
                                 queue5m.enqueue(result);
+                                if (previous) {
+                                    previous = 0;
+                                    sendNotification(item.response.status, item.response.statusText, item.response.data);
+                                }
                             }
                         });
                     })

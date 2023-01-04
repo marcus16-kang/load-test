@@ -1,0 +1,39 @@
+{
+  "name": "load-test",
+  "version": "0.0.1",
+  "description": "``` powershell\r & 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' --incognito --disable-web-security --user-data-dir=\"C:\\chrome\" https://marcus16-kang.github.io/load-test/index.html\r ```",
+  "main": "app.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "electron-builder -p never --win portable"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://marcus16-kang@github.com/marcus16-kang/load-test.git"
+  },
+  "author": "",
+  "bugs": {
+    "url": "https://github.com/marcus16-kang/load-test/issues"
+  },
+  "homepage": "https://github.com/marcus16-kang/load-test#readme",
+  "devDependencies": {
+    "electron": "^22.0.0",
+    "electron-builder": "^23.6.0",
+    "electron-icon-builder": "^2.0.1"
+  },
+  "build": {
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ],
+      "icon": "build/icons/win/icon.ico"
+    }
+  }
+}
