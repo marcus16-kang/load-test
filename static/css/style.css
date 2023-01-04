@@ -1,0 +1,47 @@
+@charset "UTF-8";
+
+* {
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
+html, body, main {
+    height: 100%;
+}
+
+h1 {
+    height: 50px;
+}
+
+.dashboard {
+    height: calc(100% - 50px - 0.5rem);
+}
+
+.h-33 {
+    height: 33%;
+}
+
+.h-66 {
+    height: 66%;
+}
+
+.log {
+    max-height: calc(100% - 5.3rem);
+}
+
+.collapsing {
+    -webkit-transition: none;
+    transition: none;
+    display: none;
+}
+
+pre {
+    width: 1200px;
+}
+
+.log-body {
+    max-width: 600px
+}
+
+.log-5m {
+    max-height: calc(100% - 10rem);
+}

@@ -1,0 +1,797 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR&display=swap">
+    <link rel="icon" href="static/img/favicon.png">
+    <link rel="stylesheet" href="static/css/bootstrap.min.css">
+    <link rel="stylesheet" href="static/css/style.css">
+    <script src="static/js/bootstrap.bundle.min.js"></script>
+    <script src="static/js/chart.umd.min.js"></script>
+    <script src="static/js/axios.min.js"></script>
+    <title>Load Test</title>
+</head>
+<body>
+<main role="main">
+    <h1 class="p-2 ps-4">Load Test</h1>
+    <div class="ps-4 pe-4 container-fluid dashboard">
+        <div class="row h-66 ps-2 pe-2">
+            <div class="col">
+                <div class="row h-50">
+                    <div class="col-4">
+                        <canvas id="pie-all" class="m-auto" height="250"></canvas>
+                    </div>
+                    <div class="col-4">
+                        <canvas id="pie-5m" class="m-auto" height="250"></canvas>
+                    </div>
+                    <div class="col-4">
+                        <canvas id="pie-1m" class="m-auto" height="250"></canvas>
+                    </div>
+                </div>
+                <div class="row h-50">
+                    <canvas id="line" class="w-100" height="250"></canvas>
+                </div>
+            </div>
+            <div class="col h-100 w-100">
+                <h3>ALL</h3>
+                <div class="pe-4">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                        <tr>
+                            <th scope="row" class="col-3">HTTP STATUS CODE</th>
+                            <th scope="row" class="col-6">BODY</th>
+                            <th scope="row" class="col-3">TIMESTAMP</th>
+                        </tr>
+                        </thead>
+                    </table>
+                </div>
+                <div class="overflow-auto log">
+                    <table class="table table-sm">
+                        <tbody class="w-100" id="log-all-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="row h-33 ps-2 pe-2">
+            <div class="col">
+                <form class="g-3" id="input-form">
+                    <div class="row">
+                        <div class="col-12">
+                            <label for="input-endpoint" class="form-label">Endpoint</label>
+                            <input type="text" class="form-control" id="input-endpoint"
+                                   placeholder="http://example.com/test" name="endpoint"
+                                   aria-describedby="input-endpoint-feedback">
+                            <div id="input-endpoint-feedback" class="invalid-feedback"></div>
+                        </div>
+                    </div>
+                    <div class="row align-items-end">
+                        <div class="col-2">
+                            <label for="input-concurrency" class="form-label">Concurrency</label>
+                            <input type="number" class="form-control" id="input-concurrency" placeholder="1" min="0"
+                                   value="1" name="concurrency" aria-describedby="input-concurrency-feedback">
+                            <div id="input-concurrency-feedback" class="invalid-feedback"></div>
+                        </div>
+                        <div class="col-2">
+                            <label for="input-interval" class="form-label">Interval(s)</label>
+                            <input type="number" class="form-control" id="input-interval" placeholder="1" min="0"
+                                   value="1" name="interval" aria-describedby="input-interval-feedback">
+                            <div id="input-interval-feedback" class="invalid-feedback"></div>
+                        </div>
+                        <div class="col-2">
+                            <label for="input-timeout" class="form-label">Timeout(s)</label>
+                            <input type="number" class="form-control" id="input-timeout" placeholder="10" min="0"
+                                   value="0" name="timeout" aria-describedby="input-timeout-feedback">
+                            <div id="input-timeout-feedback" class="invalid-feedback"></div>
+                        </div>
+                        <div class="col-3">
+                            <h1 class="text-center" id="stopwatch">00:00:00</h1>
+                        </div>
+                        <div class="col-3">
+                            <div class="row">
+                                <button class="btn btn-lg btn-primary col-7 m-1" id="start">
+                                    <span id="start-text">Start</span>
+                                    <div class="spinner-border spinner-border-sm d-none" role="status"
+                                         id="process-spinner">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </button>
+                                <button class="btn btn-lg btn-danger col-4 m-1" id="reset-stop">
+                                    Reset
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="col h-100 w-100">
+                <div class="pe-4">
+                    <h3>5M</h3>
+                    <table class="table table-sm mb-0">
+                        <thead>
+                        <tr>
+                            <th scope="row" class="col-3">HTTP STATUS CODE</th>
+                            <th scope="row" class="col-6">BODY</th>
+                            <th scope="row" class="col-3">TIMESTAMP</th>
+                        </tr>
+                        </thead>
+                    </table>
+                </div>
+                <div class="overflow-auto log-5m">
+                    <table class="table table-sm">
+                        <tbody class="w-100" id="log-5m-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+<script src="static/js/queue.js"></script>
+<script src="static/js/cookie.js"></script>
+<script>
+    // charts
+    const pieAll = document.getElementById('pie-all');
+    const pie5m = document.getElementById('pie-5m');
+    const pie1m = document.getElementById('pie-1m');
+    const line = document.getElementById('line');
+
+    const options = {
+        responsive: false,
+        plugins: {
+            legend: {
+                display: false
+            }
+        }
+    };
+    const backgroundColor = [
+        'rgb(110,4,14)',
+        'rgb(220,53,69)',
+        'rgb(253,126,20)',
+        'rgb(25,135,84)'
+    ];
+
+    let pieAllChart = new Chart(pieAll, {
+        type: 'pie',
+        data: {
+            labels: [
+                '000',
+                '5XX',
+                '4XX',
+                '2XX'
+            ],
+            datasets: [{
+                label: 'All',
+                data: [0, 0, 0, 0],
+                backgroundColor: backgroundColor,
+                hoverOffset: 4
+            }]
+        },
+        options: options
+    });
+
+    let pie5mChart = new Chart(pie5m, {
+        type: 'pie',
+        data: {
+            labels: [
+                '000',
+                '5XX',
+                '4XX',
+                '2XX'
+            ],
+            datasets: [{
+                label: '5m',
+                data: [0, 0, 0, 0],
+                backgroundColor: backgroundColor,
+                hoverOffset: 4
+            }]
+        },
+        options: options
+    });
+
+    let pie1mChart = new Chart(pie1m, {
+        type: 'pie',
+        data: {
+            labels: [
+                '000',
+                '5XX',
+                '4XX',
+                '2XX'
+            ],
+            datasets: [{
+                label: '1m',
+                data: [],
+                backgroundColor: backgroundColor,
+                hoverOffset: 4
+            }]
+        },
+        options: options
+    });
+
+    let lineChart = new Chart(line, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: '2XX',
+                    data: [],
+                    fill: false,
+                    borderColor: backgroundColor[3],
+                },
+                {
+                    label: '4XX',
+                    data: [],
+                    fill: false,
+                    borderColor: backgroundColor[2],
+                },
+                {
+                    label: '5XX',
+                    data: [],
+                    fill: false,
+                    borderColor: backgroundColor[1],
+                },
+                {
+                    label: '000',
+                    data: [],
+                    fill: false,
+                    borderColor: backgroundColor[0],
+                },
+            ]
+        },
+        options: {
+            responsive: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+        }
+    });
+
+    class PieAllChartStatus {
+        constructor() {
+            this.HTTP_000 = 0;
+            this.HTTP_2XX = 0;
+            this.HTTP_4XX = 0;
+            this.HTTP_5XX = 0;
+        }
+
+        _updateChart(chart) {
+            chart.data.datasets[0].data[0] = this.HTTP_000;
+            chart.data.datasets[0].data[1] = this.HTTP_5XX;
+            chart.data.datasets[0].data[2] = this.HTTP_4XX;
+            chart.data.datasets[0].data[3] = this.HTTP_2XX;
+            chart.update();
+        }
+
+        add(status) {
+            status = parseInt(status);
+
+            if (status === 0) {
+                this.HTTP_000 += 1;
+            } else if (status < 400) { // 200 ~ 399
+                this.HTTP_2XX += 1;
+            } else if (status < 500) {   // 400 ~ 499
+                this.HTTP_4XX += 1;
+            } else if (status < 600) {   // 500 ~ 599
+                this.HTTP_5XX += 1;
+            }
+
+            this._updateChart(pieAllChart);
+        }
+
+        reset() {
+            this.HTTP_000 = 0;
+            this.HTTP_2XX = 0;
+            this.HTTP_4XX = 0;
+            this.HTTP_5XX = 0;
+
+            this._updateChart(pieAllChart);
+        }
+    }
+
+    class PieMinutesChartStatus extends PieAllChartStatus {
+        constructor(limit) {
+            super();
+
+            this._queue = new Queue();
+            this.limit = limit;
+        }
+
+        _checkQueue() {
+            const now = new Date();
+            let value = this._queue.peak();
+            value = value.value;
+
+            if (value) {
+                while (true) {
+                    const diff = (now.getTime() - new Date(value[1]).getTime()) / (1000 * 60);
+
+                    if (diff >= this.limit) {
+                        if (value[0] === 0) {
+                            this.HTTP_000 -= 1;
+                        } else if (value[0] < 400) {
+                            this.HTTP_2XX -= 1;
+                        } else if (value[0] < 500) {
+                            this.HTTP_4XX -= 1;
+                        } else if (value[0] < 600) {
+                            this.HTTP_5XX -= 1;
+                        }
+                        this._queue.dequeue();
+                        value = this._queue.peak();
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
+        _updateChart() {
+            this._checkQueue();
+
+            let chart;
+
+            if (this.limit === 1) {
+                chart = pie1mChart;
+            } else if (this.limit === 5) {
+                chart = pie5mChart;
+            }
+
+            super._updateChart(chart);
+        }
+
+        add(status, timestamp) {
+            status = parseInt(status);
+
+            if (status === 0) {
+                this.HTTP_000 += 1;
+            } else if (status < 400) { // 200 ~ 399
+                this.HTTP_2XX += 1;
+            } else if (status < 500) {   // 400 ~ 499
+                this.HTTP_4XX += 1;
+            } else if (status < 600) {   // 500 ~ 599
+                this.HTTP_5XX += 1;
+            }
+
+            this._queue.enqueue([status, timestamp]);
+
+            this._updateChart();
+        }
+
+        reset() {
+            this.HTTP_000 = 0;
+            this.HTTP_2XX = 0;
+            this.HTTP_4XX = 0;
+            this.HTTP_5XX = 0;
+
+            this._updateChart();
+        }
+    }
+
+    class LineChartStatus {
+        constructor() {
+            this.labelList = []
+            this.HTTP_000_List = []
+            this.HTTP_2XX_List = []
+            this.HTTP_4XX_List = []
+            this.HTTP_5XX_List = []
+            this.index = -1;
+        }
+
+        _updateChart(chart) {
+            chart.data.labels = this.labelList;
+            chart.data.datasets[0].data = this.HTTP_2XX_List;
+            chart.data.datasets[1].data = this.HTTP_4XX_List;
+            chart.data.datasets[2].data = this.HTTP_5XX_List;
+            chart.data.datasets[3].data = this.HTTP_000_List;
+            chart.update();
+        }
+
+        add(status) {
+            status = parseInt(status);
+
+            const now = new Date();
+            const time = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+            if (this.index === -1 || this.labelList[this.index] !== time) {   // empty chart
+                this.labelList.push(time);
+                this.HTTP_000_List.push(0);
+                this.HTTP_2XX_List.push(0);
+                this.HTTP_4XX_List.push(0);
+                this.HTTP_5XX_List.push(0);
+                this.index += 1;
+            }
+
+            if (status === 0) {
+                this.HTTP_000_List[this.index] += 1;
+            } else if (status < 400) {
+                this.HTTP_2XX_List[this.index] += 1;
+            } else if (status < 500) {
+                this.HTTP_4XX_List[this.index] += 1;
+            } else if (status < 600) {
+                this.HTTP_5XX_List[this.index] += 1;
+            }
+
+            console.log(this.index);
+            console.log(this.labelList);
+            console.log(this.HTTP_000_List);
+            console.log(this.HTTP_2XX_List);
+            console.log(this.HTTP_4XX_List);
+            console.log(this.HTTP_5XX_List);
+
+            this._updateChart(lineChart);
+        }
+
+        reset() {
+            this.labelList = []
+            this.HTTP_000_List = []
+            this.HTTP_2XX_List = []
+            this.HTTP_4XX_List = []
+            this.HTTP_5XX_List = []
+            this.index = -1;
+
+            this._updateChart(lineChart);
+        }
+    }
+</script>
+<script>
+    const urlRegex = "^(http:\\/\\/www\\.|https:\\/\\/www\\.|http:\\/\\/|https:\\/\\/)?[a-z0-9]+([\\-\\.]{1}[a-z0-9]+)*\\.[a-z]{2,5}(:[0-9]{1,5})?(\\/.*)?|^((http:\\/\\/www\\.|https:\\/\\/www\\.|http:\\/\\/|https:\\/\\/)?([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(:[0-9]{1,5})?(\\/.*)?$";
+
+    let startBtn = document.getElementById('start');
+    let resetStopBtn = document.getElementById('reset-stop');
+    let startText = document.getElementById('start-text');
+    let processSpinner = document.getElementById('process-spinner');
+    let stopwatch = document.getElementById('stopwatch');
+
+    let form = document.getElementById('input-form');
+    let inputs = document.querySelectorAll('input');
+    let endpointInput = document.getElementById('input-endpoint');
+    let endpointInputFeedback = document.getElementById('input-endpoint-feedback');
+    let concurrencyInput = document.getElementById('input-concurrency');
+    let concurrencyInputFeedback = document.getElementById('input-concurrency-feedback');
+    let intervalInput = document.getElementById('input-interval');
+    let intervalInputFeedback = document.getElementById('input-interval-feedback');
+    let timeoutInput = document.getElementById('input-timeout');
+    let timeoutInputFeedback = document.getElementById('input-timeout-feedback');
+
+    let logAll = document.querySelector('.log');
+    let logAllTableBody = document.getElementById('log-all-table-body');
+
+    let log5m = document.querySelector('.log-5m');
+    let log5mTableBody = document.getElementById('log-5m-table-body');
+
+    let requestEnabled = false;
+    let processing = false;
+    let time = 0;
+    let timer;
+    let timeout = 0;
+
+    let queue5m = new Queue();
+    let pieAllChartStatus = new PieAllChartStatus();
+    let pie5mChartStatus = new PieMinutesChartStatus(5);
+    let pie1mChartStatus = new PieMinutesChartStatus(1);
+    let lineChartStatus = new LineChartStatus();
+
+    inputs.forEach((value) => {
+        value.addEventListener('keydown', (event) => {
+            value.classList.remove('is-invalid');
+        });
+    });
+
+    if (getCookie('endpoint')) {
+        endpointInput.value = getCookie('endpoint');
+    }
+    if (getCookie('concurrency')) {
+        concurrencyInput.value = getCookie('concurrency');
+    }
+    if (getCookie('interval')) {
+        intervalInput.value = getCookie('interval');
+    }
+    if (getCookie('timeout')) {
+        timeoutInput.value = getCookie('timeout');
+    }
+
+
+    startBtn.addEventListener('click', async (event) => {
+        event.preventDefault();
+
+        let ready = true;
+
+        if (!endpointInput.value.match(urlRegex)) {
+            ready = false;
+            endpointInput.classList.add('is-invalid');
+            endpointInputFeedback.innerText = 'Please type the correct URL endpoint.';
+        }
+        if (concurrencyInput.value === "" && isNaN(concurrencyInput.value)) {
+            ready = false;
+            concurrencyInput.classList.add('is-invalid');
+            concurrencyInputFeedback.innerText = 'Please type the correct number.';
+        }
+        if (intervalInput.value === "" && isNaN(intervalInput.value)) {
+            ready = false;
+            intervalInput.classList.add('is-invalid');
+            intervalInputFeedback.innerText = 'Please type the correct number.';
+        }
+        if (timeoutInput.value === "" && isNaN(timeoutInput.value)) {
+            ready = false;
+            timeoutInput.classList.add('is-invalid');
+            timeoutInputFeedback.innerText = 'Please type the correct number.';
+        }
+
+
+        if (ready) {
+            setCookie('endpoint', endpointInput.value);
+            setCookie('concurrency', concurrencyInput.value);
+            setCookie('interval', intervalInput.value);
+            setCookie('timeout', timeoutInput.value);
+
+            endpointInput.disabled = true;
+            concurrencyInput.disabled = true;
+            intervalInput.disabled = true;
+            timeoutInput.disabled = true;
+
+            processSpinner.classList.remove('d-none');
+            processSpinner.classList.add('d-inline-block');
+
+            startBtn.disabled = true;
+            startText.innerText = 'Processing...';
+
+            resetStopBtn.innerText = 'Stop';
+            requestEnabled = true;
+
+            processing = true;
+
+            timeout = parseInt(timeoutInput.value);
+
+            timer = setInterval(async () => {
+                await printTime();
+                await checkLog5m();
+            }, 1000);
+            await request(endpointInput.value, parseInt(concurrencyInput.value), intervalInput.value);
+        }
+    });
+
+    resetStopBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+
+        if (requestEnabled) {
+            clearInterval(timer);
+
+            endpointInput.disabled = false;
+            concurrencyInput.disabled = false;
+            intervalInput.disabled = false;
+            timeoutInput.disabled = false;
+
+            requestEnabled = false;
+
+            resetStopBtn.innerText = 'Reset';
+
+            processSpinner.classList.add('d-none');
+            processSpinner.classList.remove('d-inline-block');
+
+            startBtn.disabled = false;
+            startText.innerText = 'Start';
+
+            processing = false;
+        } else {
+            reset();
+        }
+    });
+
+    const getAllData = (endpoints) => {
+        return Promise.all(endpoints.map(fetchData));
+    }
+
+    const fetchData = (endpoint) => {
+        return axios.get(endpoint, {
+            timeout: timeout
+        })
+            .then((response) => {
+                return response
+            })
+            .catch((error) => {
+                return error
+            });
+    }
+
+    const request = (endpoint, concurrency, interval) => {
+        if (endpoint.substring(0, 4) !== "http") {
+            endpoint = "http://" + endpoint;
+        }
+
+        let endpoints = [...Array(concurrency)].map((_, i) => endpoint);
+
+        let intervalFunction = setInterval(async () => {
+            if (!processing) {
+                clearInterval(intervalFunction);
+            } else {
+                getAllData(endpoints)
+                    .then(response => {
+                        response.map(async (item) => {
+                            if (!item.hasOwnProperty('name')) { // 200 ~ 399
+                                let result = logging(item.status, item.statusText, item.headers, item.config.headers, item.data);
+                                pieAllChartStatus.add(item.status);
+                                pie5mChartStatus.add(item.status, result[1]);
+                                pie1mChartStatus.add(item.status, result[1]);
+                                lineChartStatus.add(item.status);
+                            } else if (item.code === 'ERR_NETWORK') {
+                                let result = logging(0, 'ERR_NETWORK', '', item.config.headers, 'Please see in JavaScript Console.');
+                                pieAllChartStatus.add(0);
+                                pie5mChartStatus.add(0, result[1]);
+                                pie1mChartStatus.add(0, result[1]);
+                                lineChartStatus.add(0);
+                                queue5m.enqueue(result);
+                            } else {    // 400 ~ 599
+                                let result = logging(item.response.status, item.response.statusText, item.response.headers, item.response.config.headers, item.response.data);
+                                pieAllChartStatus.add(item.response.status);
+                                pie5mChartStatus.add(item.response.status, result[1]);
+                                pie1mChartStatus.add(item.response.status, result[1]);
+                                lineChartStatus.add(item.response.status);
+                                queue5m.enqueue(result);
+                            }
+                        });
+                    })
+                    .catch(error => {
+                        console.log(error);
+                    });
+            }
+        }, 1000 * interval);
+    }
+</script>
+<script>
+    const reset = () => {
+        form.reset();
+
+        stopwatch.innerText = '00:00:00';
+        time = 0;
+
+        logAllTableBody.innerHTML = '';
+        log5mTableBody.innerHTML = '';
+
+        pieAllChartStatus.reset();
+        pie5mChartStatus.reset();
+        pie1mChartStatus.reset();
+        lineChartStatus.reset();
+    }
+
+    const escapeHtml = (text) => {
+        let map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+
+        return text.replace(/[&<>"']/g, function (m) {
+            return map[m];
+        });
+    }
+
+    const randomStr = () => {
+        return Math.random().toString(36).substring(2, 12);
+    }
+
+    const getTimeFormatString = () => {
+        let hour = parseInt(String(time / (60 * 60)));
+        let min = parseInt(String((time - (hour * 60 * 60)) / 60));
+        let sec = time % 60;
+
+        return String(hour).padStart(2, '0') + ":" + String(min).padStart(2, '0') + ":" + String(sec).padStart(2, '0');
+    }
+
+    const printTime = async () => {
+        time += 1;
+        stopwatch.innerText = getTimeFormatString();
+    }
+
+    const checkLog5m = async () => {
+        const now = new Date();
+
+        while (true) {
+            // try {
+            const value = queue5m.peak().value;
+            const top = new Date(value[1]);
+            const diff = (now.getTime() - top.getTime()) / (1000 * 60);
+
+            if (diff >= 5) {    // 5분 이상 차이나면
+                document.getElementById('log-5m-main-' + value[0]).remove();
+                document.getElementById('log-5m-' + value[0]).remove();
+                queue5m.dequeue();
+            } else {
+                break;
+            }
+            // } catch (e) {
+            // }
+        }
+    }
+
+    const logging = (status, statusText, responseHeader, requestHeader, body) => {
+        const now = new Date();
+
+        let timestamp = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+        let random = randomStr();
+        let tableColor = '';
+
+        body = escapeHtml(String(body));
+
+        if (status === 0) {
+            status = '000'
+            tableColor = 'danger';
+        } else if (status < 400) {
+            tableColor = 'success';
+        } else if (status < 500) {
+            tableColor = 'warning';
+        } else {
+            tableColor = 'danger';
+        }
+
+        let trLog = document.createElement('tr');
+        trLog.innerHTML =
+            '<tr>' +
+            '<td class="col-3">' + status + ' ' + statusText + '</td>' +
+            '<td class="col-6">' +
+            '<div class="d-inline-block text-truncate log-body">' +
+            body +
+            '</div>' +
+            '</td>' +
+            '<td class="col-3">' + timestamp + '</td>';
+        trLog.setAttribute('class', 'table-' + tableColor);
+        trLog.setAttribute('data-bs-toggle', 'collapse');
+        trLog.setAttribute('data-bs-target', '#log-all-' + random);
+        trLog.setAttribute('aria-expanded', 'false');
+        trLog.setAttribute('aria-controls', 'log-all-' + random);
+
+        let trInfo = document.createElement('tr');
+        trInfo.innerHTML =
+            '<tr>' +
+            '<td colSpan="3">' +
+            '<pre className="overflow-x-auto">' +
+            'Body\n' +
+            body +
+            '\n' +
+            'Response Headers\n' +
+            responseHeader +
+            '\n\n' +
+            'Request Headers\n' +
+            requestHeader +
+            '</pre>' +
+            '</td>' +
+            '</tr>';
+        trInfo.setAttribute('class', 'collapse table-' + tableColor);
+        trInfo.setAttribute('id', 'log-all-' + random);
+
+        if (parseInt(status) >= 400 || parseInt(status) === 0) {    // error status code
+            let trLog5m = trLog.cloneNode(true);
+            let trInfo5m = trInfo.cloneNode(true);
+
+            trLog5m.setAttribute('id', 'log-5m-main-' + random)
+            trLog5m.setAttribute('data-bs-target', '#log-5m-' + random);
+            trLog5m.setAttribute('aria-controls', 'log-5m-' + random);
+
+            trInfo5m.setAttribute('id', 'log-5m-' + random);
+
+            log5mTableBody.appendChild(trLog5m);
+            log5m.scrollTop = log5m.scrollHeight - log5m.clientHeight;
+
+            log5mTableBody.appendChild(trInfo5m);
+        }
+
+        logAllTableBody.appendChild(trLog);
+        logAll.scrollTop = logAll.scrollHeight - logAll.clientHeight;
+
+        logAllTableBody.appendChild(trInfo);
+
+        return [random, now.toISOString()];
+    }
+</script>
+</body>
+</html>
